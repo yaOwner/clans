@@ -3,53 +3,32 @@ class Clans(commands.Cog):
 		self.Bot = Bot
 
 
-	cursor.execute("""CREATE TABLE IF NOT EXISTS clanInvite26(
-		id INT,
-		clanName TEXT,
-		clanId INT
-	)""")
-
-	cursor.execute("""CREATE TABLE IF NOT EXISTS clanOwners15(
-		owner INT,
-		clanName TEXT,
-		bio TEXT,
-		members INT,
-		banner TEXT,
-		cash INT,
-		datem TEXT
-	)""")
-
-	connection.commit()
-
 	@commands.group()
 	async def clan(self, ctx):
 		pass
 
-
 	@clan.command()
 	async def buy(self, ctx, *, name = None):
-		if ctx.channel.id == 730332130575384596:
+		if ctx.channel.id == 668447958303506432 or ctx.channel.id == 730332130575384596:
 
 			if name is None:
-				emb = discord.Embed(description = 'Введите название клана!')
+				emb = discord.Embed(description = 'Введите название клана!', timestamp = datetime.datetime.utcnow())
 				emb.set_author(name = '{}'.format(ctx.author), icon_url = '{}'.format(ctx.author.avatar_url))
 				await ctx.send(embed = emb)
 
 				await ctx.message.delete()
 
 			elif len(name) > 25:
-				emb = discord.Embed(description = 'Имя клана слишком длиное!')
+				emb = discord.Embed(description = 'Имя клана слишком длиное!', timestamp = datetime.datetime.utcnow())
 				emb.set_author(name = '{}'.format(ctx.author), icon_url = '{}'.format(ctx.author.avatar_url))
 				await ctx.send(embed = emb)
 
 				await ctx.message.delete()
 
 			else:
-				cursor.execute("SELECT cash FROM flw6 WHERE id = {}".format(ctx.author.id))
-				result = cursor.fetchone()[0]
-
-				if result < 30000:
-					emb = discord.Embed(description = 'У вас недостаточно денег!')
+				balance = db['test']
+				if balance.find_one({"_id": ctx.author.id})['cash'] < 30000:
+					emb = discord.Embed(description = 'Недостаточно денег!', timestamp = datetime.datetime.utcnow())
 					emb.set_author(name = '{}'.format(ctx.author), icon_url = '{}'.format(ctx.author.avatar_url))
 					await ctx.send(embed = emb)
 
@@ -57,49 +36,35 @@ class Clans(commands.Cog):
 
 				else:
 					
-					clans = []
-					for names in cursor.execute("SELECT clanName FROM clanInvite26"):
-						if name == names[0]:
-							clans.append(names[0])
-						else:
-							pass
-
-					if name in clans:
-						emb = discord.Embed(description = 'Такой клан уже существует!')
+					if clan.count_documents({"name": name}):
+						emb = discord.Embed(description = 'Такой клан уже существует!', timestamp = datetime.datetime.utcnow())
 						emb.set_author(name = '{}'.format(ctx.author), icon_url = '{}'.format(ctx.author.avatar_url))
 						await ctx.send(embed = emb)
 
 						await ctx.message.delete()
 
 					else:
-
-						person = cursor.execute("SELECT clanName FROM clanInvite26 WHERE id = {}".format(ctx.author.id)).fetchone() 
-
-						if person is None:
-							
-							cursor.execute("UPDATE flw6 SET cash = cash - {} WHERE id = {}".format(30000, ctx.author.id))
-							connection.commit()
-
-							cursor.execute("INSERT INTO clanOwners15 VALUES ({}, '{}', '{}', {}, '{}', {}, '{}')".format(ctx.author.id, name, 'Пусто', 1, None, 0, datetime.datetime.today()))
-							connection.commit()
-
-							cursor.execute("INSERT INTO clanInvite26 VALUES ({}, '{}', {})".format(ctx.author.id, name, ctx.author.id))
-							connection.commit()
-
-							emb = discord.Embed(description = 'Вы успешно создали клан!')
+						if clan2.count_documents({"_id": ctx.author.id}):
+							emb = discord.Embed(description = f'Вы уже в клане ', timestamp = datetime.datetime.utcnow())
 							emb.set_author(name = '{}'.format(ctx.author), icon_url = '{}'.format(ctx.author.avatar_url))
 							await ctx.send(embed = emb)
 
 							await ctx.message.delete()
 
 						else:
-							clanName = cursor.execute("SELECT clanName FROM clanInvite26 WHERE id = {}".format(ctx.author.id)).fetchone()[0]
-
-							emb = discord.Embed(description = f'Вы уже в клане {clanName}')
+							emb = discord.Embed(description = 'Вы успешно создали клан!', timestamp = datetime.datetime.utcnow())
 							emb.set_author(name = '{}'.format(ctx.author), icon_url = '{}'.format(ctx.author.avatar_url))
 							await ctx.send(embed = emb)
 
-							await ctx.message.delete()
+							balance = db['test']
+
+							clan.insert_one({"owner": ctx.author.id, "name": name, "bio": 'Пусто', "flag": None, "cash": 0, "data": datetime.datetime.today(), "members": 1})
+							clan2.insert_one({"_id": ctx.author.id, "name": name, "clanid": ctx.author.id})
+
+							newcash2 = balance.find_one({"_id": ctx.author.id})['cash'] - 30000
+							balance.update_one({"_id": ctx.author.id}, {"$set": {"cash": newcash2}}) 
+
+
 		else:
 			await ctx.message.add_reaction('❌')
 
@@ -118,61 +83,56 @@ class Clans(commands.Cog):
 
 			else:
 
-				message = await ctx.send('Обработка... Если ответа не последует, указано неверное имя клана или у клана нет баннера!')
 				try:
-					for row in cursor.execute("SELECT clanName, clanId FROM clanInvite26"):
-					
-						if name == row[0]:
-							cash = cursor.execute("SELECT cash FROM clanOwners15 WHERE clanName = '{}'".format(row[0])).fetchone()[0]
-							
-							banner = cursor.execute("SELECT banner FROM clanOwners15 WHERE clanName = '{}'".format(row[0])).fetchone()[0]
-							date = cursor.execute("SELECT datem FROM clanOwners15 WHERE clanName = '{}'".format(row[0])).fetchone()[0]
+					if clan.count_documents({"name": name}):
+						for x in clan.find({"name": name}):
 
-							bio = cursor.execute("SELECT bio FROM clanOwners15 WHERE clanName = '{}'".format(row[0])).fetchone()[0]
-							members = cursor.execute("SELECT members FROM clanOwners15 WHERE clanName = '{}'".format(row[0])).fetchone()[0]
+							emb = discord.Embed(timestamp = datetime.datetime.utcnow())
 
-							emb = discord.Embed(description = f'**[Информация клана | {row[0]}]({ctx.author.avatar_url})**\n```fix\nОписание: {bio}```')
-							
-							emb.add_field(name = 'Владелец:', value = f'```diff\n- {self.Bot.get_user(row[1])}```')
-							emb.add_field(name = 'Участников:', value = f'```diff\n- {members}```')
-							emb.add_field(name = 'Казна клана:', value = f'```diff\n- {cash}```')
+							emb.add_field(name = '`Описание:⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀`', value = f'```fix\n{x["bio"]}```', inline = False)
 
-							emb.add_field(name = 'Дата создания:', value = f'```md\n#{date}```')
+							emb.add_field(name = '`Казна клана:⠀⠀⠀⠀`', value = f'```fix\n{x["cash"]}```')
+
+							emb.add_field(name = '`Владелец:⠀⠀⠀⠀⠀⠀⠀⠀`', value = f'```yaml\n{self.Bot.get_user(x["owner"])}```')
+							emb.add_field(name = '`Участников:⠀⠀⠀⠀⠀⠀`', value = f'```yaml\n{x["members"]}```')
+
+							emb.add_field(name = '`Дата создания:⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀`', value = f'```md\n#{x["data"]}```', inline = False)
 
 
-							emb.set_thumbnail(url = banner)
+							emb.set_thumbnail(url = x["flag"])
+							emb.set_author(icon_url = '{}'.format(x["flag"]), name = f'Clan profile | {name}')
 
 							await ctx.send(embed = emb)
-							await message.delete()
+					else:
+						emb = discord.Embed(description = 'Такого клана не существует!', timestamp = datetime.datetime.utcnow())
+						emb.set_author(name = '{}'.format(ctx.author), icon_url = '{}'.format(ctx.author.avatar_url))
+						await ctx.send(embed = emb)
 
-						else:
-							pass
 				except:
-					for row in cursor.execute("SELECT clanName, clanId FROM clanInvite26"):
-					
-						if name == row[0]:
-							cash = cursor.execute("SELECT cash FROM clanOwners15 WHERE clanName = '{}'".format(row[0])).fetchone()[0]
-							
-							banner = cursor.execute("SELECT banner FROM clanOwners15 WHERE clanName = '{}'".format(row[0])).fetchone()[0]
-							date = cursor.execute("SELECT datem FROM clanOwners15 WHERE clanName = '{}'".format(row[0])).fetchone()[0]
+					if clan.count_documents({"name": name}):
+						
+						for x in clan.find({"name": name}):
 
-							bio = cursor.execute("SELECT bio FROM clanOwners15 WHERE clanName = '{}'".format(row[0])).fetchone()[0]
-							members = cursor.execute("SELECT members FROM clanOwners15 WHERE clanName = '{}'".format(row[0])).fetchone()[0]
+							emb = discord.Embed(timestamp = datetime.datetime.utcnow())
 
-							emb = discord.Embed(description = f'**[Информация клана | {row[0]}]({ctx.author.avatar_url})**\n```fix\nОписание: {bio}```')
-							
-							emb.add_field(name = 'Владелец:', value = f'```diff\n- {self.Bot.get_user(row[1])}```')
-							emb.add_field(name = 'Участников:', value = f'```diff\n- {members}```')
-							emb.add_field(name = 'Казна клана:', value = f'```diff\n- 💎 {cash}```')
+							emb.add_field(name = '`Описание:⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀`', value = f'```fix\n{x["bio"]}```', inline = False)
 
-							emb.add_field(name = 'Дата создания:', value = f'```md\n#{date}```')
+							emb.add_field(name = '`Казна клана:⠀⠀⠀⠀`', value = f'```fix\n{x["cash"]}```')
 
+							emb.add_field(name = '`Владелец:⠀⠀⠀⠀⠀⠀⠀⠀`', value = f'```yaml\n{self.Bot.get_user(x["owner"])}```')
+							emb.add_field(name = '`⠀⠀⠀Участников:⠀⠀⠀`', value = f'```yaml\n{x["members"]}```')
+
+							emb.add_field(name = '`Дата создания:⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀`', value = f'```md\n#{x["data"]}```', inline = False)
+
+							emb.set_thumbnail(url = self.Bot.get_user(x["owner"]).avatar_url)
+							emb.set_author(icon_url = '{}'.format(self.Bot.get_user(x["owner"]).avatar_url), name = f'Clan profile | {name}')
 
 							await ctx.send(embed = emb)
-							await message.delete()
 
-						else:
-							pass
+					else:
+						emb = discord.Embed(description = 'Такого клана не существует!', timestamp = datetime.datetime.utcnow())
+						emb.set_author(name = '{}'.format(ctx.author), icon_url = '{}'.format(ctx.author.avatar_url))
+						await ctx.send(embed = emb)
 		else:
 			await ctx.message.add_reaction('❌')
 
@@ -184,47 +144,49 @@ class Clans(commands.Cog):
 		if ctx.channel.id == 668447958303506432:
 
 			if link is None:
-				emb = discord.Embed(description = 'Укажите ссылку на баннер для клана!')
+				emb = discord.Embed(description = 'Укажите ссылку на баннер для клана!', timestamp = datetime.datetime.utcnow())
 				emb.set_author(name = '{}'.format(ctx.author), icon_url = '{}'.format(ctx.author.avatar_url))
 				await ctx.send(embed = emb)
 
 			else:				
 				try:
-					if cursor.execute("SELECT owner FROM clanOwners15 WHERE owner = {}".format(ctx.author.id)).fetchone() != None:
-						cursor.execute("SELECT cash FROM flw6 WHERE id = {}".format(ctx.author.id))
-						result = cursor.fetchone()[0]
+					if clan.count_documents({"owner": ctx.author.id}):
+						balance = db['test']
 
-						if result > 5000:
-
-							name = cursor.execute("SELECT clanName FROM clanOwners15 WHERE owner = {}".format(ctx.author.id)).fetchone()[0]
+						if balance.find_one({"_id": ctx.author.id})['cash'] > 5000:
 								
-							cursor.execute("UPDATE clanOwners15 SET banner = '{}' WHERE clanName = '{}'".format(link, name))
-							connection.commit()
-
-							cursor.execute("UPDATE flw6 SET cash = cash - {} WHERE id = {}".format(5000, ctx.author.id))
-							connection.commit()
-								
-							emb = discord.Embed(description = 'Вы поменяли баннер клана!')
+							emb = discord.Embed(description = 'Вы поменяли баннер клана!', timestamp = datetime.datetime.utcnow())
 							emb.set_author(name = '{}'.format(ctx.author), icon_url = '{}'.format(ctx.author.avatar_url))
 
 							emb.set_image(url = link)
 
 							await ctx.send(embed = emb)
 							await ctx.message.delete()
+
+							name = clan.find_one({"owner": ctx.author.id})['name']
+								
+							clan.update_one({"name": name}, {"$set": {"flag": link}}) 
+
+							newcash = balance.find_one({"_id": ctx.author.id})['cash'] - 5000
+							balance.update_one({"_id": ctx.author.id}, {"$set": {"cash": newcash}}) 
 							
 						else:
 								
-							emb = discord.Embed(description = 'Недостаточно денег!')
+							emb = discord.Embed(description = 'Недостаточно денег!', timestamp = datetime.datetime.utcnow())
 							emb.set_author(name = '{}'.format(ctx.author), icon_url = '{}'.format(ctx.author.avatar_url))
 							await ctx.send(embed = emb)
 					else:
-						emb = discord.Embed(description = 'Только глава может поменять баннер клана!')
+						emb = discord.Embed(description = 'Только глава может поменять баннер клана!', timestamp = datetime.datetime.utcnow())
 						emb.set_author(name = '{}'.format(ctx.author), icon_url = '{}'.format(ctx.author.avatar_url))
 						await ctx.send(embed = emb)
 
 						await ctx.message.delete()		
 				except:
-					await ctx.send('Нужно указать **ссылку** на картинку для баннера!')
+					emb = discord.Embed(description = 'Уажите ссылку на картинку!', timestamp = datetime.datetime.utcnow())
+					emb.set_author(name = '{}'.format(ctx.author), icon_url = '{}'.format(ctx.author.avatar_url))
+					await ctx.send(embed = emb)
+
+					await ctx.message.delete()	
 		else:
 			await ctx.message.add_reaction('❌')
 
@@ -232,27 +194,33 @@ class Clans(commands.Cog):
 			await ctx.message.delete()
 
 	@clan.command()
-	async def bio(self, ctx, *, name = None):
+	async def bio(self, ctx, *, bio = None):
 		if ctx.channel.id == 668447958303506432:	
-			if cursor.execute("SELECT owner FROM clanOwners15 WHERE owner = {}".format(ctx.author.id)).fetchone() != None:
+			if clan.count_documents({"owner": ctx.author.id}):
 
-				if name is None:
-					emb = discord.Embed(description = 'Укажите описание!')
+				if bio is None:
+					emb = discord.Embed(description = 'Укажите описание!', timestamp = datetime.datetime.utcnow())
 					emb.set_author(name = '{}'.format(ctx.author), icon_url = '{}'.format(ctx.author.avatar_url))
+					await ctx.send(embed = emb)
+
+				elif len(bio) > 120:
+					emb = discord.Embed(description = 'Слишком много символов(макс: 120)', timestamp = datetime.datetime.utcnow())
+					emb.set_author(icon_url = '{}'.format(ctx.author.avatar_url), name = '{}'.format(ctx.author))
+
 					await ctx.send(embed = emb)
 
 				else:
-					clanName = cursor.execute("SELECT clanName FROM clanOwners15 WHERE owner = {}".format(ctx.author.id)).fetchone()[0]
 
-					cursor.execute("UPDATE clanOwners15 SET bio = '{}' WHERE clanName = '{}'".format(name, clanName))
-					connection.commit()
-
-					emb = discord.Embed(description = f'Вы поменяли описание вашего клана на:\n```fix\n{name}```')
+					emb = discord.Embed(description = f'Вы поменяли описание вашего клана на:\n```fix\n{bio}```', timestamp = datetime.datetime.utcnow())
 					emb.set_author(name = '{}'.format(ctx.author), icon_url = '{}'.format(ctx.author.avatar_url))
 					await ctx.send(embed = emb)
+
+					name = clan.find_one({"owner": ctx.author.id})['name']
+
+					clan.update_one({"name": name}, {"$set": {"bio": bio}}) 
 			
 			else:
-				emb = discord.Embed(description = 'Только глава может поменять описание клана!')
+				emb = discord.Embed(description = 'Только глава может поменять описание клана!', timestamp = datetime.datetime.utcnow())
 				emb.set_author(name = '{}'.format(ctx.author), icon_url = '{}'.format(ctx.author.avatar_url))
 				await ctx.send(embed = emb)
 		else:
@@ -266,18 +234,18 @@ class Clans(commands.Cog):
 		if ctx.channel.id == 668447958303506432:
 
 			if member is None:
-				emb = discord.Embed(description = 'Укажите пользователя!')
+				emb = discord.Embed(description = 'Укажите пользователя!', timestamp = datetime.datetime.utcnow())
 				emb.set_author(name = '{}'.format(ctx.author), icon_url = '{}'.format(ctx.author.avatar_url))
 				await ctx.send(embed = emb)
 
 			else:
-				if cursor.execute("SELECT owner FROM clanOwners15 WHERE owner = {}".format(ctx.author.id)).fetchone() != None:
-					name = cursor.execute("SELECT clanName FROM clanInvite26 WHERE id = {}".format(ctx.author.id)).fetchone()[0]
+				if clan.count_documents({"owner": ctx.author.id}):
+					name = clan.find_one({"owner": ctx.author.id})['name']
 
-					if cursor.execute("SELECT clanName FROM clanInvite26 WHERE id = {}".format(member.id)).fetchone() is None:
+					if not clan2.count_documents({"_id": member.id}):
 							
 						solutions = ['✅', '❌']
-						emb = discord.Embed(description = f'{member} хотите ли вы вступить в клан {name}?')
+						emb = discord.Embed(title = f'Кланы {ctx.guild.name}', description = f'**{member}** хотите ли вы вступить в клан **{name}?**', timestamp = datetime.datetime.utcnow())
 							
 						message = await ctx.send(embed = emb)
 							
@@ -287,7 +255,7 @@ class Clans(commands.Cog):
 						try:
 							react, user = await self.Bot.wait_for('reaction_add', timeout= 30.0, check= lambda react, user: user == member and react.message.channel == ctx.channel and react.emoji in solutions)
 						except asyncio.TimeoutError:
-							emb = discord.Embed(description = 'Время на ответ вышло')
+							emb = discord.Embed(description = 'Время на ответ вышло', timestamp = datetime.datetime.utcnow())
 							emb.set_author(icon_url = '{}'.format(ctx.author.avatar_url), name = '{}'.format(ctx.author))
 
 							await message.edit(embed = emb)
@@ -296,32 +264,31 @@ class Clans(commands.Cog):
 							if str(react.emoji) == '✅':
 								await message.clear_reactions()
 
-								cursor.execute("INSERT INTO clanInvite26 VALUES ({}, '{}', {})".format(member.id, name, ctx.author.id))
-								connection.commit()
-
-								cursor.execute("UPDATE clanOwners15 SET members = members + {} WHERE clanName = '{}'".format(1, name))
-								connection.commit()
-										
-								emb = discord.Embed(description = f'{member} вступил в клан {name}!')
-								emb.set_author(icon_url = '{}'.format(ctx.author.avatar_url), name = '{}'.format(ctx.author))
+								emb = discord.Embed(title = f'Кланы {ctx.guild.name}', description = f'**{member}** вступил в клан **{name}!**', timestamp = datetime.datetime.utcnow())
 								await message.edit(embed = emb)
+								
+								clan2.insert_one({"_id": member.id, "name": name, "clanid": ctx.author.id})
+
+								for x in clan.find({"name": name}):
+									members = x['members'] + 1
+									
+									clan.update_one({"name": name}, {"$set": {"members": members}}) 
 									
 							elif str(react.emoji) == '❌':
 								await message.clear_reactions()
 
-								emb = discord.Embed(description = f'{member} отказался от приглашения!')
-								emb.set_author(icon_url = '{}'.format(ctx.author.avatar_url), name = '{}'.format(ctx.author))
+								emb = discord.Embed(title = f'Кланы {ctx.guild.name}', description = f'**{member}** отказался от приглашения!', timestamp = datetime.datetime.utcnow())
 
 								await message.edit(embed = emb)
 
 					else:
 
-						emb = discord.Embed(description = 'Пользователь уже в клане!')
+						emb = discord.Embed(description = 'Пользователь уже в клане!', timestamp = datetime.datetime.utcnow())
 						emb.set_author(icon_url = '{}'.format(ctx.author.avatar_url), name = '{}'.format(ctx.author))
 						await ctx.send(embed = emb)
 				else:
 
-					emb = discord.Embed(description = 'Только глава может приглашать людей!')
+					emb = discord.Embed(description = 'Только глава может приглашать людей!', timestamp = datetime.datetime.utcnow())
 					emb.set_author(icon_url = '{}'.format(ctx.author.avatar_url), name = '{}'.format(ctx.author))
 					await ctx.send(embed = emb)
 		else:
@@ -330,12 +297,61 @@ class Clans(commands.Cog):
 			await asyncio.sleep(5)
 			await ctx.message.delete()
 
+	@clan.command()
+	async def owner(self, ctx, member: discord.Member = None):
+		if ctx.channel.id == 668447958303506432:
+
+			if member is None:
+				emb = discord.Embed(description = 'Укажите пользователя!', timestamp = datetime.datetime.utcnow())
+				emb.set_author(name = '{}'.format(ctx.author), icon_url = '{}'.format(ctx.author.avatar_url))
+				await ctx.send(embed = emb)
+
+			else:
+
+				if not clan2.count_documents({"_id": ctx.author.id}):
+					emb = discord.Embed(description = 'Вы не в клане!', timestamp = datetime.datetime.utcnow())
+					emb.set_author(name = '{}'.format(ctx.author), icon_url = '{}'.format(ctx.author.avatar_url))
+					await ctx.send(embed = emb)
+
+				elif not clan2.count_documents({"_id": member.id}):
+					emb = discord.Embed(description = 'Пользователь не в клане!', timestamp = datetime.datetime.utcnow())
+					emb.set_author(name = '{}'.format(ctx.author), icon_url = '{}'.format(ctx.author.avatar_url))
+					await ctx.send(embed = emb)
+
+
+				elif not clan.count_documents({"owner": ctx.author.id}):
+					emb = discord.Embed(description = 'Только глава может отдать владельца клана!', timestamp = datetime.datetime.utcnow())
+					emb.set_author(name = '{}'.format(ctx.author), icon_url = '{}'.format(ctx.author.avatar_url))
+					await ctx.send(embed = emb)
+
+				else:
+					clanName = clan2.find_one({"_id": ctx.author.id})['name']
+					clanNameTwo = clan2.find_one({"_id": member.id})['name']
+
+					if clanName == clanNameTwo:
+						emb = discord.Embed(description = f'Вы успешно передали лидерство **{member}**', timestamp = datetime.datetime.utcnow())
+						emb.set_author(name = '{}'.format(ctx.author), icon_url = '{}'.format(ctx.author.avatar_url))
+						await ctx.send(embed = emb)
+
+						clan.update_one({"name": clanName}, {"$set": {"owner": member.id}}) 
+
+						clan2.update_one({"name": clanName}, {"$set": {"clanid": member.id}}) 
+
+					else:
+						emb = discord.Embed(description = 'Пользователь в другом клане!', timestamp = datetime.datetime.utcnow())
+						emb.set_author(name = '{}'.format(ctx.author), icon_url = '{}'.format(ctx.author.avatar_url))
+						await ctx.send(embed = emb)
+		else:
+			await ctx.message.add_reaction('❌')
+
+			await asyncio.sleep(5)
+			await ctx.message.delete()
 
 	@clan.command()
 	async def top(self, ctx, name = None):
-		if ctx.channel.id == 668447958303506432:
+		if ctx.channel.id == 668447958303506432 or ctx.channel.id == 730332130575384596:
 			if name is None:
-				emb = discord.Embed(description = 'Существующие топы: <member> <cash>')
+				emb = discord.Embed(description = 'Существующие топы: <member> <cash>', timestamp = datetime.datetime.utcnow())
 				emb.set_author(icon_url = '{}'.format(ctx.author.avatar_url), name = '{}'.format(ctx.author))
 				await ctx.send(embed = emb)
 
@@ -345,32 +361,32 @@ class Clans(commands.Cog):
 					emb = discord.Embed(description = f':trophy: **[Топ 10 кланов по участникам:]({ctx.author.avatar_url})**')
 
 					counter = 0
-					for row in cursor.execute("SELECT * FROM clanOwners15 ORDER BY members DESC LIMIT 10"):
+					for j in clan.find({"$query":{}, "$orderby":{"members":-1}}).limit(10):
 						counter += 1
 
 						if counter == 1:
-								emb.add_field(
-									name = f'[{counter}]    > :first_place: # {row[1]}',
-									value = f'| Участников: {row[3]}',
-									inline = False
-								)
+							emb.add_field(
+								name = f'[{counter}]    > :first_place: # {j["name"]}',
+								value = f'| Участников: {j["members"]}',
+								inline = False
+							)
 						elif counter == 2:
 							emb.add_field(
-								name = f'[{counter}]    > :second_place: # {row[1]}',
-								value = f'| Участников: {row[3]}',
+								name = f'[{counter}]    > :second_place: # {j["name"]}',
+								value = f'| Участников: {j["members"]}',
 								inline = False
 							)
 						elif counter == 3:
 							emb.add_field(
-								name = f'[{counter}]    > :third_place: # {row[1]}',
-								value = f'| Участников: {row[3]}',
+								name = f'[{counter}]    > :third_place: # {j["name"]}',
+								value = f'| Участников: {j["members"]}',
 								inline = False
 							)
 						else:
 
 							emb.add_field(
 								name = f'[{counter}]    > # {row[1]}',
-								value = f'| Участников: {row[3]}',
+								value = f'| Участников: {j["members"]}',
 								inline = False
 							)
 					emb.set_author(name = f'Страница 1 из 1 — Всего учатников: {len(ctx.guild.members)}', icon_url = '{}'.format(ctx.guild.icon_url))
@@ -380,35 +396,39 @@ class Clans(commands.Cog):
 					emb = discord.Embed(description = f':trophy: **[Топ 10 кланов по балансу:]({ctx.author.avatar_url})**')
 
 					counter = 0
-					for row in cursor.execute("SELECT * FROM clanOwners15 ORDER BY cash DESC LIMIT 10"):
+					for j in clan.find({"$query":{}, "$orderby":{"cash":-1}}).limit(10):
 						counter += 1
 
 						if counter == 1:
-								emb.add_field(
-									name = f'[{counter}]    > :first_place: # {row[1]}',
-									value = f'| Баланс: <a:currency:737351940320657588> {row[5]}',
-									inline = False
-								)
+							emb.add_field(
+								name = f'[{counter}]    > :first_place: # {j["name"]}',
+								value = f'| Баланс: <a:currency:737351940320657588> {j["cash"]}',
+								inline = False
+							)
 						elif counter == 2:
 							emb.add_field(
-								name = f'[{counter}]    > :second_place: # {row[1]}',
-								value = f'| Баланс: <a:currency:737351940320657588> {row[5]}',
+								name = f'[{counter}]    > :second_place: # {j["name"]}',
+								value = f'| Баланс: <a:currency:737351940320657588> {j["cash"]}',
 								inline = False
 							)
 						elif counter == 3:
 							emb.add_field(
-								name = f'[{counter}]    > :third_place: # {row[1]}',
-								value = f'| Баланс: <a:currency:737351940320657588> {row[5]}',
+								name = f'[{counter}]    > :third_place: # {j["name"]}',
+								value = f'| Баланс: <a:currency:737351940320657588> {j["cash"]}',
 								inline = False
 							)
 						else:
 
 							emb.add_field(
-								name = f'[{counter}]    > # {row[1]}',
-								value = f'| Баланс: <a:currency:737351940320657588> {row[5]}',
+								name = f'[{counter}]    > # {j["name"]}',
+								value = f'| Баланс: <a:currency:737351940320657588> {j["cash"]}',
 								inline = False
 							)
 					emb.set_author(name = f'Страница 1 из 1 — Всего учатников: {len(ctx.guild.members)}', icon_url = '{}'.format(ctx.guild.icon_url))
+					await ctx.send(embed = emb)
+				else:
+					emb = discord.Embed(description = 'Существующие топы: <member> <cash>', timestamp = datetime.datetime.utcnow())
+					emb.set_author(icon_url = '{}'.format(ctx.author.avatar_url), name = '{}'.format(ctx.author))
 					await ctx.send(embed = emb)
 		
 		else:
@@ -421,30 +441,30 @@ class Clans(commands.Cog):
 	async def leave(self, ctx):
 		if ctx.channel.id == 668447958303506432:
 
-			if cursor.execute("SELECT clanName FROM clanInvite26 WHERE id = {}".format(ctx.author.id)).fetchone() is None:
+			if clan2.find_one({"_id": ctx.author.id})['name'] is None:
 				
-				emb = discord.Embed(description = 'Вы не в клане!')
+				emb = discord.Embed(description = 'Вы не в клане!', timestamp = datetime.datetime.utcnow())
 				emb.set_author(name = '{}'.format(ctx.author), icon_url = '{}'.format(ctx.author.avatar_url))
 				await ctx.send(embed = emb)
 
 			else:
 
-				if cursor.execute("SELECT owner FROM clanOwners15 WHERE owner = {}".format(ctx.author.id)).fetchone() is None:
-					name = cursor.execute("SELECT clanName FROM clanInvite26 WHERE id = {}".format(ctx.author.id)).fetchone()[0]
+				if not clan.count_documents({"owner": ctx.author.id}):
+					name = clan2.find_one({"_id": ctx.author.id})['name']
 
-					emb = discord.Embed(description = f'Вы покинули клан {name}!')
+					emb = discord.Embed(description = f'Вы покинули клан {name}!', timestamp = datetime.datetime.utcnow())
 					emb.set_author(name = '{}'.format(ctx.author), icon_url = '{}'.format(ctx.author.avatar_url))
 					await ctx.send(embed = emb)
 
-					cursor.execute("DELETE FROM clanInvite26 WHERE id = {}".format(ctx.author.id))
-					connection.commit()
+					clan2.delete_one({"_id": ctx.author.id})
 
-					cursor.execute("UPDATE clanOwners15 SET members = members - {} WHERE clanName = '{}'".format(1, name))
-					connection.commit()
-
-					
+					for x in clan.find({"name": name}):
+						members = x['members'] - 1
+									
+						clan.update_one({"name": name}, {"$set": {"members": members}}) 
+			
 				else:
-					emb = discord.Embed(description = 'Глава не может покинуть клан!')
+					emb = discord.Embed(description = 'Глава не может покинуть клан!', timestamp = datetime.datetime.utcnow())
 					emb.set_author(name = '{}'.format(ctx.author), icon_url = '{}'.format(ctx.author.avatar_url))
 					await ctx.send(embed = emb)
 		else:
@@ -458,55 +478,56 @@ class Clans(commands.Cog):
 		if ctx.channel.id == 668447958303506432:
 
 			if member is None:
-				emb = discord.Embed(description = 'Укажите пользователя')
+				emb = discord.Embed(description = 'Укажите пользователя', timestamp = datetime.datetime.utcnow())
 				emb.set_author(name = '{}'.format(ctx.author), icon_url = '{}'.format(ctx.author.avatar_url))
 				await ctx.send(embed = emb)
 
 			elif member == ctx.author:
-				emb = discord.Embed(description = 'Самого себя кикнуть нельзя!')
+				emb = discord.Embed(description = 'Самого себя кикнуть нельзя!', timestamp = datetime.datetime.utcnow())
 				emb.set_author(name = '{}'.format(ctx.author), icon_url = '{}'.format(ctx.author.avatar_url))
 				await ctx.send(embed = emb)
 
 			else:
 
-				if cursor.execute("SELECT clanName FROM clanInvite26 WHERE id = {}".format(ctx.author.id)).fetchone() is None:
+				if not clan2.count_documents({"_id": ctx.author.id}):
 					
-					emb = discord.Embed(description = 'Вы не в клане!')
+					emb = discord.Embed(description = 'Вы не в клане!', timestamp = datetime.datetime.utcnow())
 					emb.set_author(name = '{}'.format(ctx.author), icon_url = '{}'.format(ctx.author.avatar_url))
 					await ctx.send(embed = emb)
 
-				elif cursor.execute("SELECT clanName FROM clanInvite26 WHERE id = {}".format(member.id)).fetchone() is None:
+				elif not clan2.count_documents({"_id": member.id}):
 					
-					emb = discord.Embed(description = 'Пользователь не в клане!')
+					emb = discord.Embed(description = 'Пользователь не в клане!', timestamp = datetime.datetime.utcnow())
 					emb.set_author(name = '{}'.format(ctx.author), icon_url = '{}'.format(ctx.author.avatar_url))
 					await ctx.send(embed = emb)
 
 				else:
-					if cursor.execute("SELECT owner FROM clanOwners15 WHERE owner = {}".format(ctx.author.id)).fetchone() is None:
+					if not clan.count_documents({"owner": ctx.author.id}):
 
-						emb = discord.Embed(description = 'Только глава может кикнуть участника с клана!')
+						emb = discord.Embed(description = 'Только глава может кикнуть участника с клана!', timestamp = datetime.datetime.utcnow())
 						emb.set_author(name = '{}'.format(ctx.author), icon_url = '{}'.format(ctx.author.avatar_url))
 						await ctx.send(embed = emb)
 
 					else:
-						clanName = cursor.execute("SELECT clanName FROM clanInvite26 WHERE id = {}".format(ctx.author.id)).fetchone()
-						clanNameTwo = cursor.execute("SELECT clanName FROM clanInvite26 WHERE id = {}".format(member.id)).fetchone()
+						clanName1 = clan2.find_one({"_id": ctx.author.id})['name']
+						clanName2 = clan2.find_one({"_id": member.id})['name']
 
-						if clanName == clanNameTwo:
-							name = cursor.execute("SELECT clanName FROM clanInvite26 WHERE id = {}".format(ctx.author.id)).fetchone()[0]
-							
-							cursor.execute("DELETE FROM clanInvite26 WHERE id = {}".format(member.id))
-							connection.commit()
-
-							cursor.execute("UPDATE clanOwners15 SET members = members - {} WHERE clanName = '{}'".format(1, name))
-							connection.commit()
-
-							emb = discord.Embed(description = 'Вы успешно кикнули участника с клана!')
+						if clanName1 == clanName2:
+							emb = discord.Embed(description = 'Вы успешно кикнули участника с клана!', timestamp = datetime.datetime.utcnow())
 							emb.set_author(name = '{}'.format(ctx.author), icon_url = '{}'.format(ctx.author.avatar_url))
 							await ctx.send(embed = emb)
 
+							name = clan2.find_one({"_id": ctx.author.id})['name']
+							
+							clan2.delete_one({"_id": member.id})
+
+							for x in clan.find({"name": name}):
+								members = x['members'] - 1
+									
+								clan.update_one({"name": name}, {"$set": {"members": members}}) 
+
 						else:
-							emb = discord.Embed(description = 'Данный человек находится в другом клане!')
+							emb = discord.Embed(description = 'Данный человек находится в другом клане!', timestamp = datetime.datetime.utcnow())
 							emb.set_author(name = '{}'.format(ctx.author), icon_url = '{}'.format(ctx.author.avatar_url))
 							await ctx.send(embed = emb)
 		else:
@@ -519,33 +540,30 @@ class Clans(commands.Cog):
 	async def delete(self, ctx):
 		if ctx.channel.id == 668447958303506432:
 
-			if cursor.execute("SELECT clanName FROM clanInvite26 WHERE id = {}".format(ctx.author.id)).fetchone() is None:
+			if not clan2.count_documents({"_id": ctx.author.id}):
 					
-				emb = discord.Embed(description = 'Вы не в клане!')
+				emb = discord.Embed(description = 'Вы не в клане!', timestamp = datetime.datetime.utcnow())
 				emb.set_author(name = '{}'.format(ctx.author), icon_url = '{}'.format(ctx.author.avatar_url))
 				await ctx.send(embed = emb)
 
 			else:
-				if cursor.execute("SELECT owner FROM clanInvite26 WHERE owner = {}".format(ctx.author.id)).fetchone() is None:
+				if not clan.count_documents({"owner": ctx.author.id}):
 
-					emb = discord.Embed(description = 'Только глава может удалить клан!')
+					emb = discord.Embed(description = 'Только глава может удалить клан!', timestamp = datetime.datetime.utcnow())
 					emb.set_author(name = '{}'.format(ctx.author), icon_url = '{}'.format(ctx.author.avatar_url))
 					await ctx.send(embed = emb)
 
 				else:
-					name = cursor.execute("SELECT clanName FROM clanInvite26 WHERE id = {}".format(ctx.author.id)).fetchone()[0]
-					nameTwo = cursor.execute("SELECT clanName FROM clanOwners15 WHERE owner = {}".format(ctx.author.id)).fetchone()[0]
-
-
-					cursor.execute("DELETE FROM clanInvite26 WHERE clanName = '{}'".format(name))
-					connection.commit()
-
-					cursor.execute("DELETE FROM clanOwners15 WHERE clanName = '{}'".format(nameTwo))
-					connection.commit()
-
-					emb = discord.Embed(description = 'Вы успешно удалили клан!')
+					emb = discord.Embed(description = 'Вы успешно удалили клан!', timestamp = datetime.datetime.utcnow())
 					emb.set_author(name = '{}'.format(ctx.author), icon_url = '{}'.format(ctx.author.avatar_url))
 					await ctx.send(embed = emb)
+
+					name = clan2.find_one({"_id": ctx.author.id})['name']
+
+					clan.delete_one({"name": name})
+
+					for x in clan2.find({"name": name}):
+						clan2.delete_one({"name": name})
 		else:
 			await ctx.message.add_reaction('❌')
 
@@ -554,132 +572,153 @@ class Clans(commands.Cog):
 
 	@clan.command()
 	async def award(self, ctx, amount: int = None):
-		if amount is None:
-			emb = discord.Embed(description = 'Укажите сумму!')
-			emb.set_author(name = '{}'.format(ctx.author), icon_url = '{}'.format(ctx.author.avatar_url))
-			await ctx.send(embed = emb)
-		else:
-			if cursor.execute("SELECT clanName FROM clanInvite26 WHERE id = {}".format(ctx.author.id)).fetchone() is None:
-				emb = discord.Embed(description = 'Вы не в клане!')
+		if ctx.channel.id == 668447958303506432 or ctx.channel.id == 730332130575384596:
+
+			if amount is None:
+				emb = discord.Embed(description = 'Укажите сумму!')
+				emb.set_author(name = '{}'.format(ctx.author), icon_url = '{}'.format(ctx.author.avatar_url))
+				await ctx.send(embed = emb)
+
+			elif amount < 30:
+				emb = discord.Embed(description = 'Сумма слишком маленькая!')
 				emb.set_author(name = '{}'.format(ctx.author), icon_url = '{}'.format(ctx.author.avatar_url))
 				await ctx.send(embed = emb)
 
 			else:
-
-				cursor.execute("SELECT cash FROM flw6 WHERE id = {}".format(ctx.author.id))
-				result = cursor.fetchone()[0]
-
-				if result < amount:
-					emb = discord.Embed(description = 'Сумма перевода больше суммы баланса!')
-					emb.set_author(name = '{}'.format(ctx.author), icon_url = '{}'.format(ctx.author.avatar_url))
-					await ctx.send(embed = emb)
-				else:
-
-					emb = discord.Embed(description = f'Вы успешно перевели <a:currency:737351940320657588> {amount} вашему клану!')
-					emb.set_author(name = '{}'.format(ctx.author), icon_url = '{}'.format(ctx.author.avatar_url))
-					await ctx.send(embed = emb)
-
-					name = cursor.execute("SELECT clanName FROM clanInvite26 WHERE id = {}".format(ctx.author.id)).fetchone()[0]
-					
-					cursor.execute("UPDATE clanOwners15 SET cash = cash + {} WHERE clanName = '{}'".format(amount, name))
-					connection.commit()
-
-					cursor.execute("UPDATE flw6 SET cash = cash - {} WHERE id = {}".format(amount, ctx.author.id))
-					connection.commit()
-
-	@clan.command()
-	async def take(self, ctx, amount: int = None):
-		if amount is None:
-			emb = discord.Embed(description = 'Укажите сумму!')
-			emb.set_author(name = '{}'.format(ctx.author), icon_url = '{}'.format(ctx.author.avatar_url))
-			await ctx.send(embed = emb)
-		else:
-			if cursor.execute("SELECT clanName FROM clanInvite26 WHERE id = {}".format(ctx.author.id)).fetchone() is None:
-				emb = discord.Embed(description = 'Вы не в клане!')
-				emb.set_author(name = '{}'.format(ctx.author), icon_url = '{}'.format(ctx.author.avatar_url))
-				await ctx.send(embed = emb)
-
-			else:
-
-				name = cursor.execute("SELECT clanName FROM clanInvite26 WHERE id = {}".format(ctx.author.id)).fetchone()[0]
-
-				cursor.execute("SELECT cash FROM clanOwners15 WHERE clanName = '{}'".format(name))
-				result = cursor.fetchone()[0]
-
-				if result < amount:
-					emb = discord.Embed(description = 'Сумма перевода больше суммы баланса клана!')
-					emb.set_author(name = '{}'.format(ctx.author), icon_url = '{}'.format(ctx.author.avatar_url))
-					await ctx.send(embed = emb)
-				else:
-
-					emb = discord.Embed(description = f'Вы успешно перевели себе <a:currency:737351940320657588> {amount}')
-					emb.set_author(name = '{}'.format(ctx.author), icon_url = '{}'.format(ctx.author.avatar_url))
-					await ctx.send(embed = emb)
-					
-					cursor.execute("UPDATE clanOwners15 SET cash = cash - {} WHERE clanName = '{}'".format(amount, name))
-					connection.commit()
-
-					cursor.execute("UPDATE flw6 SET cash = cash + {} WHERE id = {}".format(amount, ctx.author.id))
-					connection.commit()
-
-	@clan.command()
-	async def rename(self, ctx, *, name = None):
-		if name is None:
-			emb = discord.Embed(description = 'Введите название клана!')
-			emb.set_author(name = '{}'.format(ctx.author), icon_url = '{}'.format(ctx.author.avatar_url))
-			await ctx.send(embed = emb)
-
-		elif len(name) > 25:
-			emb = discord.Embed(description = 'Имя клана слишком длиное!')
-			emb.set_author(name = '{}'.format(ctx.author), icon_url = '{}'.format(ctx.author.avatar_url))
-			await ctx.send(embed = emb)
-
-		else:
-				
-			if cursor.execute("SELECT clanName FROM clanInvite26 WHERE id = {}".format(ctx.author.id)).fetchone() is None:
-				emb = discord.Embed(description = 'Вы не в клане!')
-				emb.set_author(name = '{}'.format(ctx.author), icon_url = '{}'.format(ctx.author.avatar_url))
-				await ctx.send(embed = emb)
-			else:
-				if cursor.execute("SELECT owner FROM clanOwners15 WHERE owner = {}".format(ctx.author.id)).fetchone() is None:
-					emb = discord.Embed(description = 'Только глава может изменить имя клана!')
+				if not clan2.count_documents({"_id": ctx.author.id}):
+					emb = discord.Embed(description = 'Вы не в клане!')
 					emb.set_author(name = '{}'.format(ctx.author), icon_url = '{}'.format(ctx.author.avatar_url))
 					await ctx.send(embed = emb)
 
 				else:
-					clans = []
-					for clanNames in cursor.execute("SELECT clanName FROM clanInvite26"):
-						if name == clanNames[0]:
-							clans.append(clanNames[0])
-						else:
-							pass
 
-					if name in clans:
-						emb = discord.Embed(description = 'Такой клан уже существует!')
+					balance = db['test']
+
+					if balance.find_one({"_id": ctx.author.id})['cash'] < amount:
+						emb = discord.Embed(description = 'Сумма перевода больше суммы баланса!', timestamp = datetime.datetime.utcnow())
 						emb.set_author(name = '{}'.format(ctx.author), icon_url = '{}'.format(ctx.author.avatar_url))
 						await ctx.send(embed = emb)
 					else:
 
-						cursor.execute("SELECT cash FROM flw6 WHERE id = {}".format(ctx.author.id))
-						result = cursor.fetchone()[0]
+						emb = discord.Embed(description = f'Вы успешно перевели в казну клана <a:currency:737351940320657588> {amount}', timestamp = datetime.datetime.utcnow())
+						emb.set_author(name = '{}'.format(ctx.author), icon_url = '{}'.format(ctx.author.avatar_url))
+						await ctx.send(embed = emb)
 
-						if result > 3000:
+						name = clan2.find_one({"_id": ctx.author.id})['name']
+											
+						newcash1 = clan.find_one({"name": name})['cash'] + amount
+						clan.update_one({"name": name}, {"$set": {"cash": newcash1}}) 
+				
+						newcash2 = balance.find_one({"_id": ctx.author.id})['cash'] - amount
+						balance.update_one({"_id": ctx.author.id}, {"$set": {"cash": newcash2}}) 
 
-							names = cursor.execute("SELECT clanName FROM clanInvite26 WHERE id = {}".format(ctx.author.id)).fetchone()[0]
+		else:
+			await ctx.message.add_reaction('❌')
 
-							cursor.execute("UPDATE clanInvite26 SET clanName = '{}' WHERE clanName = '{}'".format(name, names))
-							connection.commit()
+			await asyncio.sleep(5)
+			await ctx.message.delete()
 
-							cursor.execute("UPDATE clanOwners15 SET clanName = '{}' WHERE clanName = '{}'".format(name, names))
-							connection.commit()
+	@clan.command()
+	async def take(self, ctx, amount: int = None):
+		if ctx.channel.id == 668447958303506432 or ctx.channel.id == 730332130575384596:
 
-							emb = discord.Embed(description = f'Вы изменили имя клана на {name}')
+			if amount is None:
+				emb = discord.Embed(description = 'Укажите сумму!')
+				emb.set_author(name = '{}'.format(ctx.author), icon_url = '{}'.format(ctx.author.avatar_url))
+				await ctx.send(embed = emb)
+			else:
+				if not clan.count_documents({"owner": ctx.author.id}):
+					emb = discord.Embed(description = 'Только глава клана может взять деньги из клановой казны!', timestamp = datetime.datetime.utcnow())
+					emb.set_author(name = '{}'.format(ctx.author), icon_url = '{}'.format(ctx.author.avatar_url))
+					await ctx.send(embed = emb)
+
+				else:
+
+					name = clan2.find_one({"_id": ctx.author.id})['name']
+
+					cash = clan.find_one({"name": name})['cash']
+
+					if cash < amount:
+						emb = discord.Embed(description = 'Сумма перевода больше суммы баланса клановой казны!', timestamp = datetime.datetime.utcnow())
+						emb.set_author(name = '{}'.format(ctx.author), icon_url = '{}'.format(ctx.author.avatar_url))
+						await ctx.send(embed = emb)
+					else:
+
+						emb = discord.Embed(description = f'Вы успешно перевели себе <a:currency:737351940320657588> {amount}', timestamp = datetime.datetime.utcnow())
+						emb.set_author(name = '{}'.format(ctx.author), icon_url = '{}'.format(ctx.author.avatar_url))
+						await ctx.send(embed = emb)
+						
+						balance = db['test']
+
+						newcash1 = clan.find_one({"name": name})['cash'] - amount
+						clan.update_one({"name": name}, {"$set": {"cash": newcash1}}) 
+				
+						newcash2 = balance.find_one({"_id": ctx.author.id})['cash'] + amount
+						balance.update_one({"_id": ctx.author.id}, {"$set": {"cash": newcash2}}) 
+		else:
+			await ctx.message.add_reaction('❌')
+
+			await asyncio.sleep(5)
+			await ctx.message.delete()
+
+	@clan.command()
+	async def rename(self, ctx, *, name = None):
+		if ctx.channel.id == 668447958303506432:
+
+			if name is None:
+				emb = discord.Embed(description = 'Введите название клана!', timestamp = datetime.datetime.utcnow())
+				emb.set_author(name = '{}'.format(ctx.author), icon_url = '{}'.format(ctx.author.avatar_url))
+				await ctx.send(embed = emb)
+
+			elif len(name) > 25:
+				emb = discord.Embed(description = 'Имя клана слишком длиное!', timestamp = datetime.datetime.utcnow())
+				emb.set_author(name = '{}'.format(ctx.author), icon_url = '{}'.format(ctx.author.avatar_url))
+				await ctx.send(embed = emb)
+
+			else:
+					
+				if not clan2.count_documents({"_id": ctx.author.id}):
+					emb = discord.Embed(description = 'Вы не в клане!')
+					emb.set_author(name = '{}'.format(ctx.author), icon_url = '{}'.format(ctx.author.avatar_url))
+					await ctx.send(embed = emb)
+				else:
+					if not clan.count_documents({"owner": ctx.author.id}):
+						emb = discord.Embed(description = 'Только глава может изменить имя клана!', timestamp = datetime.datetime.utcnow())
+						emb.set_author(name = '{}'.format(ctx.author), icon_url = '{}'.format(ctx.author.avatar_url))
+						await ctx.send(embed = emb)
+
+					else:
+						if clan.count_documents({"name": name}):
+							emb = discord.Embed(description = 'Такой клан уже существует!', timestamp = datetime.datetime.utcnow())
 							emb.set_author(name = '{}'.format(ctx.author), icon_url = '{}'.format(ctx.author.avatar_url))
 							await ctx.send(embed = emb)
 						else:
-							emb = discord.Embed(description = 'Недостаточно денег!')
-							emb.set_author(name = '{}'.format(ctx.author), icon_url = '{}'.format(ctx.author.avatar_url))
-							await ctx.send(embed = emb)
+
+							balance = db['test']
+							result = balance.find_one({"_id": ctx.author.id})['cash']
+							if result > 4000:
+								emb = discord.Embed(description = f'Вы изменили имя клана на **{name}**', timestamp = datetime.datetime.utcnow())
+								emb.set_author(name = '{}'.format(ctx.author), icon_url = '{}'.format(ctx.author.avatar_url))
+								
+								await ctx.send(embed = emb)
+								
+								names = clan2.find_one({"_id": ctx.author.id})['name']
+								clan.update_one({"name": names}, {"$set": {"name": name}}) 
+								for x in clan2.find({"name": names}):
+									clan2.update_one({"name": names}, {"$set": {"name": name}}) 
+
+								newcash2 = balance.find_one({"_id": ctx.author.id})['cash'] - 4000
+								balance.update_one({"_id": ctx.author.id}, {"$set": {"cash": newcash2}}) 
+
+							else:
+								emb = discord.Embed(description = 'Недостаточно денег!', timestamp = datetime.datetime.utcnow())
+								emb.set_author(name = '{}'.format(ctx.author), icon_url = '{}'.format(ctx.author.avatar_url))
+								await ctx.send(embed = emb)
+		else:
+			await ctx.message.add_reaction('❌')
+
+			await asyncio.sleep(5)
+			await ctx.message.delete()
 
 def setup(Bot):
 	Bot.add_cog(Clans(Bot))
