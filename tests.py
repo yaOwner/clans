@@ -59,7 +59,7 @@ class Clans(commands.Cog):
 							balance = db['test']
 
 							clan.insert_one({"owner": ctx.author.id, "name": name, "bio": 'Пусто', "flag": None, "cash": 0, "data": datetime.datetime.today(), "members": 1})
-							clan2.insert_one({"_id": ctx.author.id, "name": name, "clanid": ctx.author.id})
+							clan2.insert_one({"_id": ctx.author.id, "name": name})
 
 							newcash2 = balance.find_one({"_id": ctx.author.id})['cash'] - 30000
 							balance.update_one({"_id": ctx.author.id}, {"$set": {"cash": newcash2}}) 
